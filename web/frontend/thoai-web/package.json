@@ -1,0 +1,16 @@
+{
+  "name": "gas-detection-dashboard",
+  "version": "1.0.0",
+  "description": "Gas Detection Dashboard for Smart House IoT",
+  "main": "index.js",
+  "scripts": {
+    "start": "npx http-server . -p 3000 -o",
+    "dev": "npx http-server . -p 3000 -o"
+  },
+  "dependencies": {
+    "http-server": "^14.1.1"
+  },
+  "keywords": ["react", "gas-detection", "iot", "dashboard"],
+  "author": "",
+  "license": "MIT"
+}
