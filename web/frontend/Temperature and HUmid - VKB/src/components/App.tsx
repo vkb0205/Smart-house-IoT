@@ -1,33 +1,48 @@
-// import Message from "../assets/Message";
-// import ListGroup from "./ListGroup";
-// import Alert from "./Alert";
-// import Button from "./Button";
-// let items = ["New York", "San Francisco", "Tokyo", "London", "Paris"];
-
-// const handleSelectItem = (item: string) => {
-//   console.log("Clicked");
-// };
-
-// function App() {
-//   //return <div><ListGroup items={items} heading="Cities" onSelectItem={handleSelectItem}/></div>;
-//   /*return (
-//     <Alert>
-//       Hello <span>World</span>
-//     </Alert>
-//   );
-//   */
-//   return (
-//     <Button onClick={() => console.log("Clicked")} color="secondary">
-//       Submit
-//     </Button>
-//   );
-// }
-
+import React from "react";
 import "./App.css";
+import { AuthProvider, useAuth } from "../contexts/AuthContext";
+import AuthForm from "./Auth/AuthForm";
 import Homepage from "./Homepage/Homepage";
 
+// Protected App Content
+const AppContent: React.FC = () => {
+  const { user, loading, logout } = useAuth();
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "100vh",
+          fontSize: "1.2rem",
+        }}
+      >
+        Loading...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthForm onAuthSuccess={() => {}} />;
+  }
+
+  return (
+    <div>
+      {/* Main application */}
+      <Homepage />
+    </div>
+  );
+};
+
+// Main App with Authentication Provider
 function App() {
-  return <Homepage />;
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
 }
 
 export default App;

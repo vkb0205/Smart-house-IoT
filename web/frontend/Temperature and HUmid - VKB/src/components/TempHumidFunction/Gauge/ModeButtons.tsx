@@ -6,16 +6,16 @@ const ModeButtons = () => {
   return (
     <div className={styles.modeButtonsContainer}>
       <button className={styles.modeButton} title="Cool">
-        <FaSnowflake />
+        <FaSnowflake style={{ fontSize: "1.2rem" }} />
       </button>
       <button className={styles.modeButton} title="Heat">
-        <FaFire />
+        <FaFire style={{ fontSize: "1.2rem" }} />
       </button>
       <button className={styles.modeButton} title="Auto">
-        <FaSmile />
+        <FaSmile style={{ fontSize: "1.2rem" }} />
       </button>
       <button className={styles.modeButton} title="Manual">
-        <FaUser />
+        <FaUser style={{ fontSize: "1.2rem" }} />
       </button>
     </div>
   );

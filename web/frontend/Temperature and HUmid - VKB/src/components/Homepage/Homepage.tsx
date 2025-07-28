@@ -4,6 +4,8 @@ import Dashboard from "../TempHumidFunction/Dashboard";
 import GasDetection from "../GasDetection/GasDetection";
 import IrrigationSystem from "../IrrigationSystem/IrrigationSystem";
 import UniversalNavBar from "../UniversalNavBar";
+import Profile from "../Profile/Profile";
+import RealtimeTest from "../Test/RealtimeTest";
 
 interface HomepageProps {
   onNavigate?: (page: string) => void;
@@ -30,10 +32,10 @@ const Homepage: React.FC<HomepageProps> = ({ onNavigate }) => {
         setCurrentView("home");
         break;
       case "profile":
-        showNotification("Profile settings coming soon!");
+        setCurrentView("profile");
         break;
       case "settings":
-        showNotification("System settings coming soon!");
+        setCurrentView("test");
         break;
       default:
         break;
@@ -45,6 +47,38 @@ const Homepage: React.FC<HomepageProps> = ({ onNavigate }) => {
     return (
       <>
         <Dashboard onBack={() => setCurrentView("home")} />
+        <UniversalNavBar
+          currentView={currentView}
+          onNavigate={(view: string) => {
+            setCurrentView(view);
+          }}
+          onShowNotification={showNotification}
+        />
+      </>
+    );
+  }
+
+  // If user navigated to profile, show the Profile component
+  if (currentView === "profile") {
+    return (
+      <>
+        <Profile />
+        <UniversalNavBar
+          currentView={currentView}
+          onNavigate={(view: string) => {
+            setCurrentView(view);
+          }}
+          onShowNotification={showNotification}
+        />
+      </>
+    );
+  }
+
+  // If user navigated to test, show the Realtime Database test
+  if (currentView === "test") {
+    return (
+      <>
+        <RealtimeTest />
         <UniversalNavBar
           currentView={currentView}
           onNavigate={(view: string) => {
