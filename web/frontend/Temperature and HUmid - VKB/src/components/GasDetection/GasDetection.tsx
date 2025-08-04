@@ -1,5 +1,22 @@
 import React, { useState, useEffect, useCallback } from "react";
 import styles from "../../styles/GasDetection.module.css";
+import { initializeApp } from "firebase/app";
+
+// import {getDatabase, onValue,ref } from "firebase/database";
+import { getDatabase, ref, get } from "firebase/database";
+const firebaseConfig = {
+  apiKey: "AIzaSyB8vZA9_zqopzXn_ug4vMqHtHAwJgA1n8c",
+  authDomain: "smarthouse-iot-lab.firebaseapp.com",
+  databaseURL: "https://smarthouse-iot-lab-default-rtdb.asia-southeast1.firebasedatabase.app/",
+  projectId: "smarthouse-iot-lab",
+  storageBucket: "smarthouse-iot-lab.appspot.com",
+  messagingSenderId: "556659966348",
+  appId: "1:556659966348:web:smarthouse-iot-lab"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
 
 interface GasDetectionProps {
   onBack?: () => void;
@@ -23,8 +40,8 @@ interface SystemStatus {
 const GasDetection: React.FC<GasDetectionProps> = ({ onBack }) => {
   const [data, setData] = useState<GasData>({
     gasLevel: 0,
-    temperature: 22.5,
-    humidity: 45,
+    temperature: 0,
+    humidity: 0,
     time: new Date().toLocaleTimeString(),
     timestamp: Date.now(),
   });
@@ -117,25 +134,52 @@ const GasDetection: React.FC<GasDetectionProps> = ({ onBack }) => {
 
   // Real-time data simulation
   useEffect(() => {
-    if (!settings.autoRefresh) return;
+  // Bỏ qua nếu người dùng tắt auto-refresh trong settings
+  if (!settings.autoRefresh) return;
 
-    const interval = setInterval(() => {
-      const newData = mockGasData();
-      const now = Date.now();
-      const timeStamp = new Date().toLocaleTimeString();
-      const fullData = { ...newData, time: timeStamp, timestamp: now };
+  const sensorRef = ref(db, 'sensors/current');
 
-      setData(fullData);
-      setHistory((prev) => {
-        const updated = [...prev, fullData];
-        return updated.slice(-settings.dataRetention);
-      });
+  // Tạo một vòng lặp chạy mỗi 5 giây (5000 mili giây)
+  const intervalId = setInterval(() => {
+    // Sử dụng get() để lấy dữ liệu một lần
+    get(sensorRef).then((snapshot) => {
+      if (snapshot.exists()) {
+        const newData = snapshot.val();
+        const now = Date.now();
+        const timeStamp = new Date().toLocaleTimeString();
+        const fullData = { 
+          ...newData,
+          time: timeStamp,
+          timestamp: now,
+        };
 
-      setSystemStatus((prev) => ({ ...prev, lastUpdate: now }));
-    }, settings.refreshInterval);
+        // Cập nhật state như cũ
+        setData(fullData);
+        setHistory((prev) => {
+          const updated = [...prev, fullData];
+          return updated.slice(-settings.dataRetention);
+        });
+        setSystemStatus((prev) => ({ ...prev, lastUpdate: now, isConnected: true }));
 
-    return () => clearInterval(interval);
-  }, [settings.autoRefresh, settings.refreshInterval, settings.dataRetention]);
+      } else {
+        // Xử lý trường hợp không có dữ liệu tại đường dẫn
+        setSystemStatus((prev) => ({ ...prev, isConnected: false }));
+        showNotification("⚠️ Sensor data not found at the specified path.");
+      }
+    }).catch((error) => {
+      // Xử lý lỗi khi không thể kết nối hoặc lấy dữ liệu
+      console.error("Firebase fetch error:", error);
+      setSystemStatus((prev) => ({ ...prev, isConnected: false }));
+      showNotification("⚠️ Could not fetch data from the sensor.");
+    });
+  }, 5000); // Đặt khoảng thời gian là 5000ms = 5 giây
+
+  // Hàm dọn dẹp sẽ xóa vòng lặp khi component unmount
+  return () => {
+    clearInterval(intervalId);
+  };
+  
+}, [settings.autoRefresh, settings.dataRetention, showNotification]);
 
   // Save thresholds to localStorage
   useEffect(() => {
