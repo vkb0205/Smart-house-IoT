@@ -3,20 +3,20 @@ import styles from "../../styles/GasDetection.module.css";
 import { initializeApp } from "firebase/app";
 
 // import {getDatabase, onValue,ref } from "firebase/database";
-import { getDatabase, ref, get } from "firebase/database";
+import { getDatabase, ref, onValue } from "firebase/database";
 const firebaseConfig = {
   apiKey: "AIzaSyB8vZA9_zqopzXn_ug4vMqHtHAwJgA1n8c",
   authDomain: "smarthouse-iot-lab.firebaseapp.com",
-  databaseURL: "https://smarthouse-iot-lab-default-rtdb.asia-southeast1.firebasedatabase.app/",
+  databaseURL:
+    "https://smarthouse-iot-lab-default-rtdb.asia-southeast1.firebasedatabase.app/",
   projectId: "smarthouse-iot-lab",
   storageBucket: "smarthouse-iot-lab.appspot.com",
   messagingSenderId: "556659966348",
-  appId: "1:556659966348:web:smarthouse-iot-lab"
+  appId: "1:556659966348:web:smarthouse-iot-lab",
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
-
 
 interface GasDetectionProps {
   onBack?: () => void;
@@ -82,12 +82,7 @@ const GasDetection: React.FC<GasDetectionProps> = ({ onBack }) => {
 
   const status = getStatus();
 
-  // Mock data function - replace with real ESP32 data fetching
-  const mockGasData = (): Omit<GasData, "time" | "timestamp"> => ({
-    gasLevel: Math.floor(Math.random() * 100),
-    temperature: parseFloat((20 + Math.random() * 15).toFixed(1)),
-    humidity: parseFloat((40 + Math.random() * 20).toFixed(1)),
-  });
+  // Real Firebase data fetching - removed mock data function
 
   const showNotification = useCallback((message: string) => {
     setNotification(message);
@@ -132,54 +127,264 @@ const GasDetection: React.FC<GasDetectionProps> = ({ onBack }) => {
     }, 3000);
   }, [showNotification]);
 
-  // Real-time data simulation
+  // Real Firebase real-time data listening - TRUE REAL-TIME like temperature
   useEffect(() => {
-  // Bỏ qua nếu người dùng tắt auto-refresh trong settings
-  if (!settings.autoRefresh) return;
+    if (!settings.autoRefresh) return;
 
-  const sensorRef = ref(db, 'sensors/current');
+    console.log(
+      "🔥 GasDetection connecting to Firebase for REAL-TIME sensor data..."
+    );
 
-  // Tạo một vòng lặp chạy mỗi 5 giây (5000 mili giây)
-  const intervalId = setInterval(() => {
-    // Sử dụng get() để lấy dữ liệu một lần
-    get(sensorRef).then((snapshot) => {
-      if (snapshot.exists()) {
-        const newData = snapshot.val();
-        const now = Date.now();
-        const timeStamp = new Date().toLocaleTimeString();
-        const fullData = { 
-          ...newData,
-          time: timeStamp,
-          timestamp: now,
-        };
+    // Set up listeners for both possible paths - prioritize 'sensor' (real-time data)
+    const sensorRef1 = ref(db, "sensors/current"); // Old data structure
+    const sensorRef2 = ref(db, "sensor"); // Real-time data with gas-value
 
-        // Cập nhật state như cũ
-        setData(fullData);
-        setHistory((prev) => {
-          const updated = [...prev, fullData];
-          return updated.slice(-settings.dataRetention);
-        });
-        setSystemStatus((prev) => ({ ...prev, lastUpdate: now, isConnected: true }));
-
-      } else {
-        // Xử lý trường hợp không có dữ liệu tại đường dẫn
-        setSystemStatus((prev) => ({ ...prev, isConnected: false }));
-        showNotification("⚠️ Sensor data not found at the specified path.");
+    // Listen to sensor path FIRST (real-time data with gas-value: 242)
+    const unsubscribe2 = onValue(
+      sensorRef2,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const firebaseData = snapshot.val();
+          console.log(
+            "📊 GasDetection received REAL-TIME data from 'sensor' (PRIMARY):",
+            firebaseData
+          );
+          // This is the real-time data source - always use it
+          updateGasDataFromFirebase(firebaseData);
+        }
+      },
+      (error) => {
+        console.error("❌ Firebase real-time error on 'sensor':", error);
       }
-    }).catch((error) => {
-      // Xử lý lỗi khi không thể kết nối hoặc lấy dữ liệu
-      console.error("Firebase fetch error:", error);
-      setSystemStatus((prev) => ({ ...prev, isConnected: false }));
-      showNotification("⚠️ Could not fetch data from the sensor.");
-    });
-  }, 5000); // Đặt khoảng thời gian là 5000ms = 5 giây
+    );
 
-  // Hàm dọn dẹp sẽ xóa vòng lặp khi component unmount
-  return () => {
-    clearInterval(intervalId);
+    // Listen to sensors/current path SECOND (backup/older data)
+    const unsubscribe1 = onValue(
+      sensorRef1,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const firebaseData = snapshot.val();
+          console.log(
+            "📊 GasDetection received data from 'sensors/current' (BACKUP):",
+            firebaseData
+          );
+          // Only use this as backup if it has gas-value field OR if sensor path failed
+          if (firebaseData["gas-value"] !== undefined) {
+            console.log("✅ sensors/current has gas-value, using as backup");
+            updateGasDataFromFirebase(firebaseData);
+          } else {
+            console.log(
+              "⏭️ sensors/current is old data structure, ignoring (we have real-time from 'sensor')"
+            );
+          }
+        }
+      },
+      (error) => {
+        console.error(
+          "❌ Firebase real-time error on 'sensors/current':",
+          error
+        );
+      }
+    );
+
+    // Cleanup function to unsubscribe from both listeners
+    return () => {
+      console.log("🔌 Disconnecting Firebase real-time listeners...");
+      unsubscribe1();
+      unsubscribe2();
+    };
+  }, [settings.autoRefresh, settings.dataRetention, showNotification]);
+
+  // Helper function to update gas data from Firebase
+  const updateGasDataFromFirebase = (firebaseData: any) => {
+    console.log(
+      "🔄 Processing REAL-TIME Firebase data structure:",
+      Object.keys(firebaseData)
+    );
+    console.log("🔄 Raw REAL-TIME Firebase data:", firebaseData);
+
+    // Debug: Show all possible gas-related fields
+    console.log("🔍 Checking all gas-related fields:");
+    console.log("  gas-value:", firebaseData["gas-value"]);
+    console.log("  gasValue:", firebaseData.gasValue);
+    console.log("  gasLevel:", firebaseData.gasLevel);
+    console.log("  gas_value:", firebaseData.gas_value);
+    console.log("  gas:", firebaseData.gas);
+
+    // Check data source priority
+    const isRealTimeSource = firebaseData["gas-value"] !== undefined;
+    const isBackupSource =
+      firebaseData.gasLevel !== undefined && !isRealTimeSource;
+
+    console.log("🎯 Data source analysis:");
+    console.log("  Is real-time source (has gas-value):", isRealTimeSource);
+    console.log("  Is backup source (has gasLevel only):", isBackupSource);
+
+    if (isBackupSource) {
+      console.log("⏭️ SKIPPING backup source - we prioritize real-time data");
+      return; // Skip processing old data structure
+    }
+
+    const now = Date.now();
+    const timeStamp = new Date().toLocaleTimeString();
+
+    // Extract data from different possible Firebase structures
+    let gasLevel, temperature, humidity;
+
+    // Handle different data structures - prioritize gas-value field
+    if (firebaseData["gas-value"] !== undefined) {
+      gasLevel = parseFloat(firebaseData["gas-value"]);
+      console.log(
+        "✅ Found gas-value field:",
+        firebaseData["gas-value"],
+        "-> parsed:",
+        gasLevel
+      );
+    } else if (firebaseData.gas_value !== undefined) {
+      gasLevel = parseFloat(firebaseData.gas_value);
+      console.log(
+        "✅ Found gas_value field:",
+        firebaseData.gas_value,
+        "-> parsed:",
+        gasLevel
+      );
+    } else if (firebaseData.gas !== undefined) {
+      gasLevel = parseFloat(firebaseData.gas);
+      console.log(
+        "✅ Found gas field:",
+        firebaseData.gas,
+        "-> parsed:",
+        gasLevel
+      );
+    } else if (firebaseData.gasValue !== undefined) {
+      gasLevel = parseFloat(firebaseData.gasValue);
+      console.log(
+        "✅ Found gasValue field:",
+        firebaseData.gasValue,
+        "-> parsed:",
+        gasLevel
+      );
+    } else if (firebaseData.gasLevel !== undefined) {
+      gasLevel = parseFloat(firebaseData.gasLevel);
+      console.log(
+        "✅ Found gasLevel field:",
+        firebaseData.gasLevel,
+        "-> parsed:",
+        gasLevel
+      );
+    } else {
+      console.warn(
+        "⚠️ Gas level not found in Firebase data - available fields:",
+        Object.keys(firebaseData)
+      );
+      gasLevel = 0;
+    }
+
+    if (firebaseData.temperature !== undefined) {
+      temperature = parseFloat(firebaseData.temperature);
+      console.log(
+        "✅ Found temperature field:",
+        firebaseData.temperature,
+        "-> parsed:",
+        temperature
+      );
+    } else {
+      console.warn("⚠️ Temperature not found in Firebase data");
+      temperature = 0;
+    }
+
+    if (firebaseData.humidity !== undefined) {
+      humidity = parseFloat(firebaseData.humidity);
+      console.log(
+        "✅ Found humidity field:",
+        firebaseData.humidity,
+        "-> parsed:",
+        humidity
+      );
+    } else {
+      console.warn("⚠️ Humidity not found in Firebase data");
+      humidity = 0;
+    }
+
+    console.log(
+      "📈 Extracted REAL-TIME values - Gas:",
+      gasLevel,
+      "ppm, Temp:",
+      temperature,
+      "°C, Humidity:",
+      humidity,
+      "%"
+    );
+
+    // Extra validation to ensure we're using the right gas value
+    if (
+      firebaseData["gas-value"] &&
+      gasLevel !== parseFloat(firebaseData["gas-value"])
+    ) {
+      console.error(
+        "❌ Gas level mismatch! Expected:",
+        firebaseData["gas-value"],
+        "Got:",
+        gasLevel
+      );
+      gasLevel = parseFloat(firebaseData["gas-value"]); // Force correct value
+      console.log("🔧 Corrected gas level to:", gasLevel);
+    }
+
+    // If this Firebase data doesn't have gas-value but we've seen it before, ignore old data
+    if (!firebaseData["gas-value"] && firebaseData.gasLevel !== undefined) {
+      console.warn("⚠️ Ignoring old data structure without gas-value field");
+      console.warn(
+        "   This data has gasLevel:",
+        firebaseData.gasLevel,
+        "but we want gas-value"
+      );
+      return; // Skip this update
+    }
+
+    // Validate the extracted data
+    if (gasLevel === 0 && temperature === 0 && humidity === 0) {
+      console.error(
+        "❌ All sensor values are 0 - this might be dummy data or extraction failed"
+      );
+      showNotification("⚠️ Received invalid sensor data from Firebase");
+      return;
+    }
+
+    // Create the data object with real Firebase values
+    const fullData: GasData = {
+      gasLevel: gasLevel,
+      temperature: temperature,
+      humidity: humidity,
+      time: timeStamp,
+      timestamp: now,
+    };
+
+    // Update component state
+    setData(fullData);
+    setHistory((prev) => {
+      const updated = [...prev, fullData];
+      return updated.slice(-settings.dataRetention);
+    });
+    setSystemStatus((prev) => ({
+      ...prev,
+      lastUpdate: now,
+      isConnected: true,
+    }));
+
+    console.log("✅ GasDetection UI updated with REAL-TIME data:", fullData);
+
+    // Show notification for high gas levels (but not repeatedly)
+    if (gasLevel >= criticalThreshold && !systemStatus.alertActive) {
+      showNotification(`🚨 CRITICAL: Gas level ${gasLevel} ppm detected!`);
+    } else if (
+      gasLevel >= warningThreshold &&
+      !systemStatus.alertActive &&
+      gasLevel < criticalThreshold
+    ) {
+      showNotification(`⚠️ WARNING: Gas level ${gasLevel} ppm detected!`);
+    }
   };
-  
-}, [settings.autoRefresh, settings.dataRetention, showNotification]);
 
   // Save thresholds to localStorage
   useEffect(() => {
@@ -287,9 +492,47 @@ const GasDetection: React.FC<GasDetectionProps> = ({ onBack }) => {
             </button>
           )}
           <div className={styles.titleSection}>
-            <h1 className={styles.pageTitle}>🛡️ Gas Detection System</h1>
+            <h1 className={styles.pageTitle}>
+              🛡️ Gas Detection System
+              <span
+                style={{
+                  marginLeft: "1rem",
+                  fontSize: "0.8rem",
+                  padding: "0.25rem 0.5rem",
+                  borderRadius: "4px",
+                  background: systemStatus.isConnected ? "#10b981" : "#ef4444",
+                  color: "white",
+                }}
+              >
+                {systemStatus.isConnected ? "🟢 LIVE" : "🔴 OFFLINE"}
+              </span>
+              {/* Debug indicator */}
+              {data.gasLevel > 0 && (
+                <span
+                  style={{
+                    marginLeft: "0.5rem",
+                    fontSize: "0.7rem",
+                    padding: "0.2rem 0.4rem",
+                    borderRadius: "4px",
+                    background: "#3b82f6",
+                    color: "white",
+                  }}
+                >
+                  REAL-TIME DATA
+                </span>
+              )}
+            </h1>
             <p className={styles.pageSubtitle}>
               Real-time Gas Monitoring & Safety Alert
+              <span
+                style={{
+                  marginLeft: "1rem",
+                  fontSize: "0.8rem",
+                  opacity: 0.7,
+                }}
+              >
+                (Last update: {data.time})
+              </span>
             </p>
           </div>
         </div>
@@ -582,9 +825,9 @@ const GasDetection: React.FC<GasDetectionProps> = ({ onBack }) => {
                     {/* Critical threshold line */}
                     <line
                       x1="0"
-                      y1={300 - (criticalThreshold / 100) * 200}
+                      y1={300 - Math.min((criticalThreshold / 200) * 200, 200)}
                       x2="100%"
-                      y2={300 - (criticalThreshold / 100) * 200}
+                      y2={300 - Math.min((criticalThreshold / 200) * 200, 200)}
                       stroke="#dc2626"
                       strokeWidth="2"
                       strokeDasharray="5,5"
@@ -593,9 +836,9 @@ const GasDetection: React.FC<GasDetectionProps> = ({ onBack }) => {
                     {/* Warning threshold line */}
                     <line
                       x1="0"
-                      y1={300 - (warningThreshold / 100) * 200}
+                      y1={300 - Math.min((warningThreshold / 200) * 200, 200)}
                       x2="100%"
-                      y2={300 - (warningThreshold / 100) * 200}
+                      y2={300 - Math.min((warningThreshold / 200) * 200, 200)}
                       stroke="#f59e0b"
                       strokeWidth="2"
                       strokeDasharray="5,5"
@@ -606,17 +849,20 @@ const GasDetection: React.FC<GasDetectionProps> = ({ onBack }) => {
                       <polygon
                         fill="url(#gasGradient)"
                         points={`0,300 ${history
-                          .map(
-                            (d, i) =>
-                              `${
-                                (i / Math.max(history.length - 1, 1)) * 100
-                              }%,${300 - (d.gasLevel / 100) * 200}`
-                          )
-                          .join(" ")} ${
-                          ((history.length - 1) /
-                            Math.max(history.length - 1, 1)) *
-                          100
-                        }%,300`}
+                          .map((d, i) => {
+                            const x =
+                              history.length > 1
+                                ? (i / (history.length - 1)) * 100
+                                : 50;
+                            const y =
+                              300 -
+                              Math.min(
+                                (Math.max(d.gasLevel, 0) / 200) * 200,
+                                200
+                              );
+                            return `${x},${y}`;
+                          })
+                          .join(" ")} ${history.length > 1 ? 100 : 50},300`}
                       />
                     )}
 
@@ -629,42 +875,66 @@ const GasDetection: React.FC<GasDetectionProps> = ({ onBack }) => {
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         points={history
-                          .map(
-                            (d, i) =>
-                              `${
-                                (i / Math.max(history.length - 1, 1)) * 100
-                              }%,${300 - (d.gasLevel / 100) * 200}`
-                          )
+                          .map((d, i) => {
+                            const x =
+                              history.length > 1
+                                ? (i / (history.length - 1)) * 100
+                                : 50;
+                            const y =
+                              300 -
+                              Math.min(
+                                (Math.max(d.gasLevel, 0) / 200) * 200,
+                                200
+                              );
+                            return `${x},${y}`;
+                          })
                           .join(" ")}
                       />
                     )}
 
                     {/* Data points */}
-                    {history.map((d, i) => (
-                      <circle
-                        key={i}
-                        cx={`${(i / Math.max(history.length - 1, 1)) * 100}%`}
-                        cy={300 - (d.gasLevel / 100) * 200}
-                        r="4"
-                        fill={
-                          d.gasLevel >= criticalThreshold
-                            ? "#dc2626"
-                            : d.gasLevel >= warningThreshold
-                            ? "#f59e0b"
-                            : "#10b981"
-                        }
-                        className={styles.dataPoint}
-                        style={{ filter: "drop-shadow(0 0 4px currentColor)" }}
-                      >
-                        <title>{`${d.time}: ${d.gasLevel} ppm`}</title>
-                      </circle>
-                    ))}
+                    {history.map((d, i) => {
+                      const x =
+                        history.length > 1
+                          ? (i / (history.length - 1)) * 100
+                          : 50;
+                      const y =
+                        300 -
+                        Math.min((Math.max(d.gasLevel, 0) / 200) * 200, 200);
+                      return (
+                        <circle
+                          key={i}
+                          cx={`${x}%`}
+                          cy={y}
+                          r="4"
+                          fill={
+                            d.gasLevel >= criticalThreshold
+                              ? "#dc2626"
+                              : d.gasLevel >= warningThreshold
+                              ? "#f59e0b"
+                              : "#10b981"
+                          }
+                          className={styles.dataPoint}
+                          style={{
+                            filter: "drop-shadow(0 0 4px currentColor)",
+                          }}
+                        >
+                          <title>{`${d.time}: ${d.gasLevel} ppm`}</title>
+                        </circle>
+                      );
+                    })}
 
                     {/* Current value indicator */}
-                    {history.length > 0 && (
+                    {data.gasLevel !== undefined && (
                       <circle
-                        cx="100%"
-                        cy={300 - (data.gasLevel / 100) * 200}
+                        cx="95%"
+                        cy={
+                          300 -
+                          Math.min(
+                            (Math.max(data.gasLevel, 0) / 200) * 200,
+                            200
+                          )
+                        }
                         r="6"
                         fill={getStatusColor()}
                         stroke="white"
@@ -682,7 +952,7 @@ const GasDetection: React.FC<GasDetectionProps> = ({ onBack }) => {
                   <span>0 ppm</span>
                   <span>{warningThreshold} ppm</span>
                   <span>{criticalThreshold} ppm</span>
-                  <span>100 ppm</span>
+                  <span>200 ppm</span>
                 </div>
               </div>
 
