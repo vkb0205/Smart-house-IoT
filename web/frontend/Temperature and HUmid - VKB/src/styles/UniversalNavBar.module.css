@@ -1,3 +1,4 @@
+/* Container chính của Navbar */
 .universalNavBar {
   position: fixed;
   bottom: 0;
@@ -7,12 +8,14 @@
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 0.75rem 1rem;
+  /* Giảm padding trên/dưới */
+  padding: 0.5rem 1rem; 
   z-index: 1000;
   box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.3);
   animation: slideInFromBottom 0.5s ease-out;
 }
 
+/* Container chứa các nút */
 .navContainer {
   display: flex;
   justify-content: space-around;
@@ -22,14 +25,17 @@
   gap: 0.5rem;
 }
 
+/* Nút bấm */
 .navButton {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.25rem;
+  /* Giảm khoảng cách giữa icon và chữ */
+  gap: 0.15rem; 
   background: transparent;
   border: none;
-  padding: 0.5rem 0.75rem;
+  /* Giảm padding trên/dưới */
+  padding: 0.25rem 0.75rem; 
   border-radius: 12px;
   color: rgba(255, 255, 255, 0.6);
   cursor: pointer;
@@ -68,14 +74,18 @@
   transform: none;
 }
 
+/* Icon */
 .navIcon {
-  font-size: 1.25rem;
+  /* Giảm kích thước icon */
+  font-size: 1.15rem; 
   transition: transform 0.3s ease;
-  margin-bottom: 0.125rem;
+  /* margin-bottom đã được xóa vì đã có 'gap' trong .navButton */
 }
 
+/* Nhãn chữ */
 .navLabel {
-  font-size: 0.75rem;
+  /* Giảm kích thước chữ */
+  font-size: 0.7rem; 
   font-weight: 500;
   text-align: center;
   line-height: 1;
@@ -94,6 +104,7 @@
   line-height: 1;
 }
 
+/* Các animations không thay đổi */
 @keyframes slideInFromBottom {
   from {
     transform: translateY(100%);
@@ -114,7 +125,7 @@
   }
 }
 
-/* Responsive Design */
+/* Responsive Design cũng được giữ nguyên vì đã khá tốt */
 @media (max-width: 480px) {
   .universalNavBar {
     padding: 0.5rem;
