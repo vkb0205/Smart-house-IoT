@@ -3,7 +3,7 @@ import styles from "../../styles/GasDetection.module.css";
 import { initializeApp } from "firebase/app";
 
 // import {getDatabase, onValue,ref } from "firebase/database";
-import { getDatabase, ref, onValue } from "firebase/database";
+import { getDatabase, ref, get, onValue } from "firebase/database";
 const firebaseConfig = {
   apiKey: "AIzaSyB8vZA9_zqopzXn_ug4vMqHtHAwJgA1n8c",
   authDomain: "smarthouse-iot-lab.firebaseapp.com",
@@ -129,70 +129,42 @@ const GasDetection: React.FC<GasDetectionProps> = ({ onBack }) => {
 
   // Real Firebase real-time data listening - TRUE REAL-TIME like temperature
   useEffect(() => {
-    if (!settings.autoRefresh) return;
+    // if (!settings.autoRefresh) return;
 
     console.log(
       "🔥 GasDetection connecting to Firebase for REAL-TIME sensor data..."
     );
 
     // Set up listeners for both possible paths - prioritize 'sensor' (real-time data)
-    const sensorRef1 = ref(db, "sensors/current"); // Old data structure
-    const sensorRef2 = ref(db, "sensor"); // Real-time data with gas-value
+    const sensorRef = ref(db, "sensors/current"); // Old data structure
+    // const sensorRef2 = ref(db, "sensor"); // Real-time data with gas-value
 
     // Listen to sensor path FIRST (real-time data with gas-value: 242)
-    const unsubscribe2 = onValue(
-      sensorRef2,
-      (snapshot) => {
-        if (snapshot.exists()) {
-          const firebaseData = snapshot.val();
-          console.log(
-            "📊 GasDetection received REAL-TIME data from 'sensor' (PRIMARY):",
-            firebaseData
-          );
-          // This is the real-time data source - always use it
-          updateGasDataFromFirebase(firebaseData);
-        }
-      },
-      (error) => {
-        console.error("❌ Firebase real-time error on 'sensor':", error);
-      }
-    );
-
-    // Listen to sensors/current path SECOND (backup/older data)
-    const unsubscribe1 = onValue(
-      sensorRef1,
-      (snapshot) => {
-        if (snapshot.exists()) {
-          const firebaseData = snapshot.val();
-          console.log(
-            "📊 GasDetection received data from 'sensors/current' (BACKUP):",
-            firebaseData
-          );
-          // Only use this as backup if it has gas-value field OR if sensor path failed
-          if (firebaseData["gas-value"] !== undefined) {
-            console.log("✅ sensors/current has gas-value, using as backup");
-            updateGasDataFromFirebase(firebaseData);
-          } else {
-            console.log(
-              "⏭️ sensors/current is old data structure, ignoring (we have real-time from 'sensor')"
-            );
+    const unsubscribe = setInterval(()=>{
+          get(sensorRef)
+          .then((snapshot) => {
+            if (snapshot.exists()) {
+              const firebaseData = snapshot.val();
+              console.log(
+                "📊 Homepage received REAL-TIME data from 'sensors/current':",
+                firebaseData
+              );
+              // Luôn gọi hàm update vì đây là nguồn dữ liệu duy nhất
+              updateGasDataFromFirebase(firebaseData);
+            } else {
+              console.warn("⚠️ Path 'sensors/current' does not exist in Firebase.");
+            }
+          },
+          (error) => {
+            console.error("❌ Firebase real-time error on 'sensors/current':", error);
           }
-        }
-      },
-      (error) => {
-        console.error(
-          "❌ Firebase real-time error on 'sensors/current':",
-          error
         );
-      }
-    );
+      },5000);
+    // Listen to sensors/current path SECOND (backup/older data)
+    
 
     // Cleanup function to unsubscribe from both listeners
-    return () => {
-      console.log("🔌 Disconnecting Firebase real-time listeners...");
-      unsubscribe1();
-      unsubscribe2();
-    };
+    return () => clearInterval(unsubscribe);
   }, [settings.autoRefresh, settings.dataRetention, showNotification]);
 
   // Helper function to update gas data from Firebase
@@ -220,10 +192,10 @@ const GasDetection: React.FC<GasDetectionProps> = ({ onBack }) => {
     console.log("  Is real-time source (has gas-value):", isRealTimeSource);
     console.log("  Is backup source (has gasLevel only):", isBackupSource);
 
-    if (isBackupSource) {
-      console.log("⏭️ SKIPPING backup source - we prioritize real-time data");
-      return; // Skip processing old data structure
-    }
+    // if (isBackupSource) {
+    //   console.log("⏭️ SKIPPING backup source - we prioritize real-time data");
+    //   return; // Skip processing old data structure
+    // }
 
     const now = Date.now();
     const timeStamp = new Date().toLocaleTimeString();
@@ -232,19 +204,19 @@ const GasDetection: React.FC<GasDetectionProps> = ({ onBack }) => {
     let gasLevel, temperature, humidity;
 
     // Handle different data structures - prioritize gas-value field
-    if (firebaseData["gas-value"] !== undefined) {
-      gasLevel = parseFloat(firebaseData["gas-value"]);
+    if (firebaseData["gasLevel"] !== undefined) {
+      gasLevel = parseFloat(firebaseData["gasLevel"]);
       console.log(
         "✅ Found gas-value field:",
-        firebaseData["gas-value"],
+        firebaseData["gasLevel"],
         "-> parsed:",
         gasLevel
       );
-    } else if (firebaseData.gas_value !== undefined) {
-      gasLevel = parseFloat(firebaseData.gas_value);
+    } else if (firebaseData.gasLevel !== undefined) {
+      gasLevel = parseFloat(firebaseData.gasLevel);
       console.log(
         "✅ Found gas_value field:",
-        firebaseData.gas_value,
+        firebaseData.gasLevel,
         "-> parsed:",
         gasLevel
       );
@@ -332,7 +304,7 @@ const GasDetection: React.FC<GasDetectionProps> = ({ onBack }) => {
     }
 
     // If this Firebase data doesn't have gas-value but we've seen it before, ignore old data
-    if (!firebaseData["gas-value"] && firebaseData.gasLevel !== undefined) {
+    if (!firebaseData["gasLevel"] && firebaseData.gasLevel !== undefined) {
       console.warn("⚠️ Ignoring old data structure without gas-value field");
       console.warn(
         "   This data has gasLevel:",

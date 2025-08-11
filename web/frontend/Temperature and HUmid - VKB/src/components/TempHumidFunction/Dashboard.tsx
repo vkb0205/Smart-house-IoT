@@ -6,7 +6,7 @@ import DeviceSwitchGrid from "./Gauge/DeviceSwitchGrid";
 import RightPanel from "./RightPanel";
 
 // Firebase imports
-import { getDatabase, ref, get, set } from "firebase/database";
+import { getDatabase, onValue, ref, get, set } from "firebase/database";
 import { initializeApp } from "firebase/app";
 
 //styles
@@ -14,14 +14,13 @@ import styles from "../../styles/Dashboard.module.css";
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyB8vZA9_zqopzXn_ug4vMqHtHAwJgA1n8c",
-  authDomain: "smarthouse-iot-lab.firebaseapp.com",
-  databaseURL:
-    "https://smarthouse-iot-lab-default-rtdb.asia-southeast1.firebasedatabase.app/",
-  projectId: "smarthouse-iot-lab",
-  storageBucket: "smarthouse-iot-lab.appspot.com",
-  messagingSenderId: "556659966348",
-  appId: "1:556659966348:web:smarthouse-iot-lab",
+  apiKey: "AIzaSyB8vZA9_zqopzXn_ug4vMqHtHAwJgA1n8c",
+  authDomain: "smarthouse-iot-lab.firebaseapp.com",
+  databaseURL: "https://smarthouse-iot-lab-default-rtdb.asia-southeast1.firebasedatabase.app/",
+  projectId: "smarthouse-iot-lab",
+  storageBucket: "smarthouse-iot-lab.appspot.com",
+  messagingSenderId: "556659966348",
+  appId: "1:556659966348:web:smarthouse-iot-lab"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -36,15 +35,23 @@ interface EnvironmentData {
   humidity: number;
   safety: number;
   timestamp: number;
-  airQuality: "Good" | "Moderate" | "Poor";
+  airQuality: string;
   powerUsage: number;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ onBack }) => {
-  const [temperature, setTemperature] = useState(24);
-  const [desiredTemp, setDesiredTemp] = useState(24);
-  const [humidity, setHumidity] = useState(45);
-  const [safety, setSafety] = useState(85);
+  const [temperature, setTemperature] = useState(0);
+  const [desiredTemp, setDesiredTemp] = useState(0);
+  const [humidity, setHumidity] = useState(0);
+  const [safety, setSafety] = useState(0);
+  // const [data, setData] = useState<EnvironmentData>({
+  //   temperature: 0,
+  //   humidity: 0,
+  //   safety: 0,
+  //   timestamp: Date.now(),
+  //   airQuality: "",
+  //   powerUsage: 0,
+  // });
   // Map Firebase device fields to our device array
   // Index 0: buzzer, 1: fan, 2: led, 3: water_pump, 4-5: future devices
   const [devices, setDevices] = useState([
@@ -71,7 +78,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onBack }) => {
     console.log("🔥 Dashboard connecting to Firebase for real sensor data...");
 
     // Use only the real-time sensor path (same as GasDetection)
-    const sensorRef = ref(db, "sensor"); // Real-time data path
+    const sensorRef = ref(db, "sensors/current"); // Real-time data path
     const deviceRef = ref(db, "device"); // Device control path
 
     const intervalId = setInterval(() => {
@@ -111,7 +118,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onBack }) => {
         .catch((error) => {
           console.error("❌ Firebase fetch error on device:", error);
         });
-    }, 3000); // Fetch every 3 seconds
+    }, 5000); // Fetch every 3 seconds
 
     return () => clearInterval(intervalId);
   }, [desiredTemp, autoMode, showNotification]);

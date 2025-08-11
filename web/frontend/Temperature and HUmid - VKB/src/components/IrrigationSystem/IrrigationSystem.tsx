@@ -1,12 +1,24 @@
 import React, { useState, useEffect, useCallback } from "react";
 import styles from "../../styles/IrrigationSystem.module.css";
-
+import { getDatabase, onValue, ref, get, set } from "firebase/database";
+import { initializeApp } from "firebase/app";
+const firebaseConfig = {
+  apiKey: "AIzaSyB8vZA9_zqopzXn_ug4vMqHtHAwJgA1n8c",
+  authDomain: "smarthouse-iot-lab.firebaseapp.com",
+  databaseURL: "https://smarthouse-iot-lab-default-rtdb.asia-southeast1.firebasedatabase.app/",
+  projectId: "smarthouse-iot-lab",
+  storageBucket: "smarthouse-iot-lab.appspot.com",
+  messagingSenderId: "556659966348",
+  appId: "1:556659966348:web:smarthouse-iot-lab"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 interface IrrigationSystemProps {
   onBack?: () => void;
 }
 
 interface SensorData {
-  soilMoisture: number;
+  soil: boolean;
   temperature: number;
   humidity: number;
   lightLevel: number;
@@ -33,14 +45,15 @@ interface WeatherData {
 
 const IrrigationSystem: React.FC<IrrigationSystemProps> = ({ onBack }) => {
   const [currentData, setCurrentData] = useState<SensorData>({
-    soilMoisture: 45,
-    temperature: 26,
-    humidity: 65,
-    lightLevel: 75,
+    soil: false,
+    temperature: 0,
+    humidity: 0,
+    lightLevel: 0,
     timestamp: Date.now(),
     time: new Date().toLocaleTimeString(),
   });
 
+  
   const [zones, setZones] = useState<Zone[]>([
     {
       id: 1,
@@ -94,7 +107,7 @@ const IrrigationSystem: React.FC<IrrigationSystemProps> = ({ onBack }) => {
     "active"
   );
   const [dataHistory, setDataHistory] = useState<SensorData[]>([]);
-
+  const [isConnected, setIsConnected] = useState(false);
   const showNotification = useCallback((message: string) => {
     setNotification(message);
     setTimeout(() => setNotification(null), 4000);
@@ -102,18 +115,32 @@ const IrrigationSystem: React.FC<IrrigationSystemProps> = ({ onBack }) => {
 
   // Simulate real-time sensor data
   useEffect(() => {
+    console.log("🔥 Dashboard connecting to Firebase for real sensor data...");
+    const sensorRef = ref(db, "sensors/current");
     const interval = setInterval(() => {
-      const newData: SensorData = {
-        soilMoisture: Math.max(20, Math.min(100, 40 + Math.random() * 40)),
-        temperature: parseFloat((24 + Math.random() * 8).toFixed(1)),
-        humidity: Math.floor(50 + Math.random() * 30),
-        lightLevel: Math.floor(60 + Math.random() * 40),
-        timestamp: Date.now(),
-        time: new Date().toLocaleTimeString(),
-      };
+      get(sensorRef)
+        .then((snapshot) => {
+          if (snapshot.exists()) {
+            const firebaseData = snapshot.val();
+            console.log("📊 Sensor data fetched:", firebaseData);
+            updateUIWithFirebaseData(firebaseData);
+          }
+          else {
+            console.warn("⚠️ No sensor data found in Firebase");
+            setIsConnected(false);
+            showNotification("⚠️ No real-time sensor data available");
+          }
+          })
+        .catch((error) => {
+          console.error("❌ Firebase fetch error on sensor:", error);
+          setIsConnected(false);
+          showNotification("⚠️ Could not fetch sensor data from Firebase");
+        });
+      
+      
 
-      setCurrentData(newData);
-      setDataHistory((prev) => [...prev.slice(-19), newData]);
+      // setCurrentData(newData);
+      // setDataHistory((prev) => [...prev.slice(-19), newData]);
 
       // Update zones with slight variations
       setZones((prev) =>
@@ -139,7 +166,309 @@ const IrrigationSystem: React.FC<IrrigationSystemProps> = ({ onBack }) => {
 
     return () => clearInterval(interval);
   }, [autoMode, zones, showNotification]);
+const updateUIWithFirebaseData = (firebaseData: any) => {
+    console.log(
+      "🔄 Processing REAL-TIME Firebase data structure:",
+      Object.keys(firebaseData)
+    );
+    console.log("🔄 Raw REAL-TIME Firebase data:", firebaseData);
+    // Debug: Show all possible gas-related fields
+    console.log("🔍 Checking all gas-related fields:");
+    console.log("  gas-value:", firebaseData["gas-value"]);
+    console.log("  gasValue:", firebaseData.gasValue);
+    console.log("  gasLevel:", firebaseData.gasLevel);
+    console.log("  gas_value:", firebaseData.gas_value);
+    console.log("  gas:", firebaseData.gas);
+    // Check data source priority
+    const isRealTimeSource = firebaseData["gas-value"] !== undefined;
+    const isBackupSource =
+      firebaseData.gasLevel !== undefined && !isRealTimeSource;
+    console.log("🎯 Data source analysis:");
+    console.log("  Is real-time source (has gas-value):", isRealTimeSource);
+    console.log("  Is backup source (has gasLevel only):", isBackupSource);
+//     if (isBackupSource) {
 
+//       console.log("⏭️ SKIPPING backup source - we prioritize real-time data");
+
+//       return; // Skip processing old data structure
+
+//     }
+
+
+
+    const now = Date.now();
+
+    const timeStamp = new Date().toLocaleTimeString();
+
+
+
+    // Extract data from different possible Firebase structures
+
+    let gasLevel, temperature, humidity, soil;
+
+
+
+    // Handle different data structures - prioritize gas-value field
+
+    if (firebaseData["gasLevel"] !== undefined) {
+      gasLevel = parseFloat(firebaseData["gasLevel"]);
+      console.log(
+        "✅ Found gas-value field:",
+        firebaseData["gasLevel"],
+        "-> parsed:",
+        gasLevel
+      );
+    } else if (firebaseData.gasLevel !== undefined) {
+      gasLevel = parseFloat(firebaseData.gasLevel);
+      console.log(
+        "✅ Found gasLevel field:",
+        firebaseData.gasLevel,
+        "-> parsed:",
+        gasLevel
+      );
+    } else if (firebaseData.gas !== undefined) {
+      gasLevel = parseFloat(firebaseData.gas);
+      console.log(
+        "✅ Found gas field:",
+        firebaseData.gas,
+        "-> parsed:",
+        gasLevel
+      );
+    } else if (firebaseData.gasValue !== undefined) {
+      gasLevel = parseFloat(firebaseData.gasValue);
+      console.log(
+        "✅ Found gasValue field:",
+        firebaseData.gasValue,
+        "-> parsed:",
+        gasLevel
+      );
+    } else if (firebaseData.gasLevel !== undefined) {
+      gasLevel = parseFloat(firebaseData.gasLevel);
+      console.log(
+        "✅ Found gasLevel field:",
+        firebaseData.gasLevel,
+        "-> parsed:",
+        gasLevel
+      );
+    } else {
+      console.warn(
+        "⚠️ Gas level not found in Firebase data - available fields:",
+        Object.keys(firebaseData)
+      );
+      gasLevel = 0;
+    }
+
+
+    if (firebaseData.temperature !== undefined) {
+
+      temperature = parseFloat(firebaseData.temperature);
+
+      console.log(
+
+        "✅ Found temperature field:",
+
+        firebaseData.temperature,
+
+        "-> parsed:",
+
+        temperature
+
+      );
+
+    } else {
+
+      console.warn("⚠️ Temperature not found in Firebase data");
+
+      temperature = 0;
+
+    }
+
+
+
+    if (firebaseData.humidity !== undefined) {
+
+      humidity = parseFloat(firebaseData.humidity);
+
+      console.log(
+
+        "✅ Found humidity field:",
+
+        firebaseData.humidity,
+
+        "-> parsed:",
+
+        humidity
+
+      );
+
+    } else {
+
+      console.warn("⚠️ Humidity not found in Firebase data");
+
+      humidity = 0;
+
+    }
+
+
+
+    if (firebaseData.soil !== undefined) {
+
+      soil = parseFloat(firebaseData.soil);
+
+      console.log(
+
+        "✅ Found soil field:",
+
+        firebaseData.soil,
+
+        "-> parsed:",
+
+        soil
+
+      );
+
+    } else {
+
+      console.warn("⚠️ soil not found in Firebase data");
+
+      soil = 0;
+
+    }
+
+    console.log(
+
+      "📈 Extracted REAL-TIME values - Gas:",
+
+      gasLevel,
+
+      "ppm, Temp:",
+
+      temperature,
+
+      "°C, Humidity:",
+
+      humidity,
+
+      "%, Soil Moisture:",
+
+      soil,
+
+      "%"
+
+    );
+
+
+
+    // Extra validation to ensure we're using the right gas value
+
+    if (
+
+      firebaseData["gas-value"] &&
+
+      gasLevel !== parseFloat(firebaseData["gas-value"])
+
+    ) {
+
+      console.error(
+
+        "❌ Gas level mismatch! Expected:",
+
+        firebaseData["gas-value"],
+
+        "Got:",
+
+        gasLevel
+
+      );
+
+      gasLevel = parseFloat(firebaseData["gas-value"]); // Force correct value
+
+      console.log("🔧 Corrected gas level to:", gasLevel);
+
+    }
+
+
+
+    // If this Firebase data doesn't have gas-value but we've seen it before, ignore old data
+
+    if (!firebaseData["gasLevel"] && firebaseData.gasLevel !== undefined) {
+
+      console.warn("⚠️ Ignoring old data structure without gas-value field");
+
+      console.warn(
+
+        "   This data has gasLevel:",
+
+        firebaseData.gasLevel,
+
+        "but we want gas-value"
+
+      );
+
+      return; // Skip this update
+
+    }
+
+
+
+    // Validate the extracted data
+
+    if (gasLevel === 0 && temperature === 0 && humidity === 0) {
+
+      console.error(
+
+        "❌ All sensor values are 0 - this might be dummy data or extraction failed"
+
+      );
+
+      showNotification("⚠️ Received invalid sensor data from Firebase");
+
+      return;
+
+    }
+
+
+    // Update states with real Firebase data
+    const fullData: SensorData = {
+      temperature: temperature,
+      humidity: humidity,
+      soil: soil > 0 ? true : false, // Convert soil moisture to boolean
+      time: timeStamp,
+      lightLevel: Math.round(Math.random() * 100), // Simulate light level
+      timestamp: now,
+    };
+    setCurrentData(fullData);
+    // Create environment data for history
+    // const newData: SensorData = {
+    //   soil: soil > 0 ? true : false, // Convert soil moisture to boolean
+    //   temperature: temp || temperature,
+    //   humidity: humid || humidity,
+    //   safety: gasValue ? Math.max(0, 100 - gasValue) : safety,
+    //   timestamp: Date.now(),
+    //   airQuality:
+    //     gasValue && gasValue > 50
+    //       ? "Poor"
+    //       : gasValue && gasValue > 30
+    //       ? "Moderate"
+    //       : "Good",
+    //   powerUsage: parseFloat((0.5 + Math.random() * 2).toFixed(1)), // Keep simulated for now
+    // };
+
+    setIsConnected(true);
+    // setLastUpdate(new Date().toLocaleTimeString());
+
+    // Auto temperature adjustment with real data
+    // if (autoMode && temperature) {
+    //   const tempDiff = Math.abs(temperature - desiredTemp);
+    //   if (tempDiff > 2) {
+    //     showNotification(
+    //       `🤖 Auto-adjusting climate system (${tempDiff.toFixed(
+    //         1
+    //       )}°C difference)`
+    //     );
+    //   }
+    // }
+  };
   const toggleZone = (zoneId: number) => {
     setZones((prev) =>
       prev.map((zone) =>
@@ -180,9 +509,9 @@ const IrrigationSystem: React.FC<IrrigationSystemProps> = ({ onBack }) => {
   const getActiveZonesCount = () =>
     zones.filter((zone) => zone.isActive).length;
 
-  const getMoistureStatus = (level: number) => {
-    if (level < 30) return { status: "low", color: "#ef4444", icon: "🚨" };
-    if (level < 60) return { status: "medium", color: "#f59e0b", icon: "⚠️" };
+  const getMoistureStatus = (level: boolean) => {
+    if (level == true) return { status: "low", color: "#ef4444", icon: "🚨" };
+    // if (level < 60) return { status: "medium", color: "#f59e0b", icon: "⚠️" };
     return { status: "good", color: "#10b981", icon: "✅" };
   };
 
@@ -272,10 +601,10 @@ const IrrigationSystem: React.FC<IrrigationSystemProps> = ({ onBack }) => {
               <span
                 className={styles.statIndicator}
                 style={{
-                  color: getMoistureStatus(currentData.soilMoisture).color,
+                  color: getMoistureStatus(currentData.soil).color,
                 }}
               >
-                {getMoistureStatus(currentData.soilMoisture).icon}
+                {getMoistureStatus(currentData.soil).icon}
               </span>
             </span>
           </div>
@@ -407,7 +736,7 @@ const IrrigationSystem: React.FC<IrrigationSystemProps> = ({ onBack }) => {
                       <span
                         className={styles.statValue}
                         style={{
-                          color: getMoistureStatus(zone.moistureLevel).color,
+                          color: getMoistureStatus(zone.moistureLevel>50 ? true:false).color,
                         }}
                       >
                         {Math.round(zone.moistureLevel)}%
@@ -429,7 +758,7 @@ const IrrigationSystem: React.FC<IrrigationSystemProps> = ({ onBack }) => {
                       className={styles.moistureFill}
                       style={{
                         width: `${zone.moistureLevel}%`,
-                        backgroundColor: getMoistureStatus(zone.moistureLevel)
+                        backgroundColor: getMoistureStatus(zone.moistureLevel>50? true:false)
                           .color,
                       }}
                     ></div>
@@ -479,102 +808,14 @@ const IrrigationSystem: React.FC<IrrigationSystemProps> = ({ onBack }) => {
                 <div className={styles.sensorData}>
                   <span className={styles.sensorLabel}>Soil Moisture</span>
                   <span className={styles.sensorValue}>
-                    {Math.round(currentData.soilMoisture)}%
+                    {Math.round(currentData.soil==true?80:20)}%
                   </span>
                 </div>
               </div>
             </div>
 
             {/* Chart Container */}
-            <div className={styles.chartContainer}>
-              <h4>Soil Moisture Trend</h4>
-              <div className={styles.chart}>
-                <svg width="100%" height="200" className={styles.chartSvg}>
-                  <defs>
-                    <linearGradient
-                      id="moistureGradient"
-                      x1="0%"
-                      y1="0%"
-                      x2="0%"
-                      y2="100%"
-                    >
-                      <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
-                      <stop
-                        offset="100%"
-                        stopColor="#10b981"
-                        stopOpacity="0.1"
-                      />
-                    </linearGradient>
-                  </defs>
-
-                  {/* Grid lines */}
-                  {[...Array(5)].map((_, i) => (
-                    <line
-                      key={i}
-                      x1="0"
-                      y1={40 + i * 32}
-                      x2="100%"
-                      y2={40 + i * 32}
-                      stroke="rgba(255,255,255,0.1)"
-                      strokeDasharray="2,2"
-                    />
-                  ))}
-
-                  {/* Data area */}
-                  {dataHistory.length > 1 && (
-                    <polygon
-                      fill="url(#moistureGradient)"
-                      points={`0,200 ${dataHistory
-                        .map(
-                          (d, i) =>
-                            `${
-                              (i / Math.max(dataHistory.length - 1, 1)) * 100
-                            }%,${200 - (d.soilMoisture / 100) * 160}`
-                        )
-                        .join(" ")} ${
-                        ((dataHistory.length - 1) /
-                          Math.max(dataHistory.length - 1, 1)) *
-                        100
-                      }%,200`}
-                    />
-                  )}
-
-                  {/* Data line */}
-                  {dataHistory.length > 1 && (
-                    <polyline
-                      fill="none"
-                      stroke="#10b981"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      points={dataHistory
-                        .map(
-                          (d, i) =>
-                            `${
-                              (i / Math.max(dataHistory.length - 1, 1)) * 100
-                            }%,${200 - (d.soilMoisture / 100) * 160}`
-                        )
-                        .join(" ")}
-                    />
-                  )}
-
-                  {/* Data points */}
-                  {dataHistory.map((d, i) => (
-                    <circle
-                      key={i}
-                      cx={`${(i / Math.max(dataHistory.length - 1, 1)) * 100}%`}
-                      cy={200 - (d.soilMoisture / 100) * 160}
-                      r="4"
-                      fill="#10b981"
-                      className={styles.dataPoint}
-                    >
-                      <title>{`${d.time}: ${Math.round(
-                        d.soilMoisture
-                      )}%`}</title>
-                    </circle>
-                  ))}
-                </svg>
-              </div>
-            </div>
+            
           </div>
         </div>
       </div>

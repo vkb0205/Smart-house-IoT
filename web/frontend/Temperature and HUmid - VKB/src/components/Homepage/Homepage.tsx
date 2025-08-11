@@ -1,99 +1,52 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-
 import styles from "../../styles/Homepage.module.css";
-
 import Dashboard from "../TempHumidFunction/Dashboard";
-
 import GasDetection from "../GasDetection/GasDetection";
-
 import IrrigationSystem from "../IrrigationSystem/IrrigationSystem";
-
 import UniversalNavBar from "../UniversalNavBar";
-
 import Profile from "../Profile/Profile";
-
 import RealtimeTest from "../Test/RealtimeTest";
-
 import { initializeApp } from "firebase/app";
-
 import ReactECharts from "echarts-for-react";
-
-// import {getDatabase, onValue,ref } from "firebase/database";
-
 import { getDatabase, ref, onValue, query, orderByChild, startAt, get, onChildAdded } from "firebase/database";
-
 const firebaseConfig = {
-
   apiKey: "AIzaSyB8vZA9_zqopzXn_ug4vMqHtHAwJgA1n8c",
-
   authDomain: "smarthouse-iot-lab.firebaseapp.com",
-
   databaseURL: "https://smarthouse-iot-lab-default-rtdb.asia-southeast1.firebasedatabase.app/",
-
   projectId: "smarthouse-iot-lab",
-
   storageBucket: "smarthouse-iot-lab.appspot.com",
-
   messagingSenderId: "556659966348",
-
   appId: "1:556659966348:web:smarthouse-iot-lab"
-
 };
 
-
-
 const app = initializeApp(firebaseConfig);
-
 const db = getDatabase(app);
 
-
-
 interface HomepageProps {
-
   onNavigate?: (page: string) => void;
-
 }
 
 interface HomeDataProps {
-
   onBack?: () => void;
-
 }
 
 interface HomeData {
-
   gas_value: number;
-
   humidity: number;
-
-  soil_value: number;
-
+  soil: boolean;
   temperature: number;
-
   time: string;
-
   timestamp: number;
-
 }
 
-
-
 const Homepage: React.FC<HomepageProps & HomeData> = ({ onNavigate }) => {
-
   const [data, setData] = useState<HomeData>({
-
     gas_value: 0,
-
     humidity: 0,
-
-    soil_value: 0,
-
+    soil: false,
     temperature: 0,
-
     time: new Date().toLocaleTimeString(),
-
     timestamp: Date.now(),
-
   });
 
   const [activeTab, setActiveTab] = useState("Monitoring");
@@ -109,11 +62,10 @@ const Homepage: React.FC<HomepageProps & HomeData> = ({ onNavigate }) => {
 
     const sensorRef = ref(db, "sensors/current");
 
-//     const sensorRef2 = ref(db, "sensor");
 
-    const unsubscribe = onValue(
-      sensorRef,
-      (snapshot) => {
+    const unsubscribe = setInterval(()=> {
+      get(sensorRef)
+      .then((snapshot) => {
         if (snapshot.exists()) {
           const firebaseData = snapshot.val();
           console.log(
@@ -130,11 +82,11 @@ const Homepage: React.FC<HomepageProps & HomeData> = ({ onNavigate }) => {
         console.error("❌ Firebase real-time error on 'sensors/current':", error);
       }
     );
-
+    }, 5000); // Fetch every 5 seconds
     // Dọn dẹp khi component unmount
     return () => {
       console.log("🔌 Disconnecting Firebase listener for 'sensors/current'...");
-      unsubscribe();
+      clearInterval(unsubscribe);
     };
   }, []);
 
@@ -202,53 +154,25 @@ const Homepage: React.FC<HomepageProps & HomeData> = ({ onNavigate }) => {
  
 
   const updateHomeDataFromFirebase = (firebaseData: any) => {
-
     console.log(
-
       "🔄 Processing REAL-TIME Firebase data structure:",
-
       Object.keys(firebaseData)
-
     );
-
     console.log("🔄 Raw REAL-TIME Firebase data:", firebaseData);
-
-
-
     // Debug: Show all possible gas-related fields
-
     console.log("🔍 Checking all gas-related fields:");
-
     console.log("  gas-value:", firebaseData["gas-value"]);
-
     console.log("  gasValue:", firebaseData.gasValue);
-
     console.log("  gasLevel:", firebaseData.gasLevel);
-
     console.log("  gas_value:", firebaseData.gas_value);
-
     console.log("  gas:", firebaseData.gas);
-
-
-
     // Check data source priority
-
     const isRealTimeSource = firebaseData["gas-value"] !== undefined;
-
     const isBackupSource =
-
       firebaseData.gasLevel !== undefined && !isRealTimeSource;
-
-
-
     console.log("🎯 Data source analysis:");
-
     console.log("  Is real-time source (has gas-value):", isRealTimeSource);
-
     console.log("  Is backup source (has gasLevel only):", isBackupSource);
-
-
-
 //     if (isBackupSource) {
 
 //       console.log("⏭️ SKIPPING backup source - we prioritize real-time data");
@@ -267,106 +191,59 @@ const Homepage: React.FC<HomepageProps & HomeData> = ({ onNavigate }) => {
 
     // Extract data from different possible Firebase structures
 
-    let gasLevel, temperature, humidity, soil_value;
+    let gasLevel, temperature, humidity, soil;
 
 
 
     // Handle different data structures - prioritize gas-value field
 
     if (firebaseData["gasLevel"] !== undefined) {
-
       gasLevel = parseFloat(firebaseData["gasLevel"]);
-
       console.log(
-
         "✅ Found gas-value field:",
-
         firebaseData["gasLevel"],
-
         "-> parsed:",
-
         gasLevel
-
       );
-
     } else if (firebaseData.gasLevel !== undefined) {
-
       gasLevel = parseFloat(firebaseData.gasLevel);
-
       console.log(
-
         "✅ Found gasLevel field:",
-
         firebaseData.gasLevel,
-
         "-> parsed:",
-
         gasLevel
-
       );
-
     } else if (firebaseData.gas !== undefined) {
-
       gasLevel = parseFloat(firebaseData.gas);
-
       console.log(
-
         "✅ Found gas field:",
-
         firebaseData.gas,
-
         "-> parsed:",
-
         gasLevel
-
       );
-
     } else if (firebaseData.gasValue !== undefined) {
-
       gasLevel = parseFloat(firebaseData.gasValue);
-
       console.log(
-
         "✅ Found gasValue field:",
-
         firebaseData.gasValue,
-
         "-> parsed:",
-
         gasLevel
-
       );
-
     } else if (firebaseData.gasLevel !== undefined) {
-
       gasLevel = parseFloat(firebaseData.gasLevel);
-
       console.log(
-
         "✅ Found gasLevel field:",
-
         firebaseData.gasLevel,
-
         "-> parsed:",
-
         gasLevel
-
       );
-
     } else {
-
       console.warn(
-
         "⚠️ Gas level not found in Firebase data - available fields:",
-
         Object.keys(firebaseData)
-
       );
-
       gasLevel = 0;
-
     }
-
 
 
     if (firebaseData.temperature !== undefined) {
@@ -421,27 +298,27 @@ const Homepage: React.FC<HomepageProps & HomeData> = ({ onNavigate }) => {
 
 
 
-    if (firebaseData.soil_value !== undefined) {
+    if (firebaseData.soil !== undefined) {
 
-      soil_value = parseFloat(firebaseData.soil_value);
+      soil = parseFloat(firebaseData.soil);
 
       console.log(
 
-        "✅ Found soil_value field:",
+        "✅ Found soil field:",
 
-        firebaseData.soil_value,
+        firebaseData.soil,
 
         "-> parsed:",
 
-        soil_value
+        soil
 
       );
 
     } else {
 
-      console.warn("⚠️ Soil_value not found in Firebase data");
+      console.warn("⚠️ soil not found in Firebase data");
 
-      soil_value = 0;
+      soil = 0;
 
     }
 
@@ -461,7 +338,7 @@ const Homepage: React.FC<HomepageProps & HomeData> = ({ onNavigate }) => {
 
       "%, Soil Moisture:",
 
-      soil_value,
+      soil,
 
       "%"
 
@@ -549,7 +426,7 @@ const Homepage: React.FC<HomepageProps & HomeData> = ({ onNavigate }) => {
 
       humidity: humidity,
 
-      soil_value: soil_value,
+      soil: soil > 0 ? true : false, // Convert soil moisture to boolean
 
       time: timeStamp,
 
@@ -567,7 +444,7 @@ const Homepage: React.FC<HomepageProps & HomeData> = ({ onNavigate }) => {
 
 
 
-    console.log("✅ GasDetection UI updated with REAL-TIME data:", fullData);
+    console.log("✅ Homepage UI updated with REAL-TIME data:", fullData);
 
 
 
