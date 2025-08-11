@@ -221,6 +221,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onBack }) => {
         );
       }
     }
+
+    if (temp <= desiredTemp)
+    {
+      setDevices((prevDevices) => {
+        const updatedDevices = [...prevDevices];
+        for (let i = 0; i < updatedDevices.length; i++) {
+        updatedDevices[i] = false; // Turn off fan if temp is below desired
+        }
+        return updatedDevices;
+      })
+    }
   };
 
   // Helper function to update device states from Firebase

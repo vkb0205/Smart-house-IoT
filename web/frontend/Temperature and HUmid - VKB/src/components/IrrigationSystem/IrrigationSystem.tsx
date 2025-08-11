@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import styles from "../../styles/IrrigationSystem.module.css";
+import styles1 from "../../styles/GasDetection.module.css";
 import { getDatabase, onValue, ref, get, set } from "firebase/database";
 import { initializeApp } from "firebase/app";
 const firebaseConfig = {
@@ -21,7 +22,7 @@ interface SensorData {
   soil: boolean;
   temperature: number;
   humidity: number;
-  lightLevel: number;
+  // lightLevel: number;
   timestamp: number;
   time: string;
 }
@@ -31,7 +32,8 @@ interface Zone {
   name: string;
   isActive: boolean;
   moistureLevel: number;
-  waterUsage: number;
+  // waterUsage: number;
+  threshold: number;
   schedule: string;
   plantType: string;
 }
@@ -48,7 +50,7 @@ const IrrigationSystem: React.FC<IrrigationSystemProps> = ({ onBack }) => {
     soil: false,
     temperature: 0,
     humidity: 0,
-    lightLevel: 0,
+    // lightLevel: 0,
     timestamp: Date.now(),
     time: new Date().toLocaleTimeString(),
   });
@@ -59,8 +61,9 @@ const IrrigationSystem: React.FC<IrrigationSystemProps> = ({ onBack }) => {
       id: 1,
       name: "Garden Bed A",
       isActive: true,
-      moistureLevel: 45,
-      waterUsage: 2.5,
+      moistureLevel: 30,
+      // waterUsage: 2.5,
+      threshold: 0,
       schedule: "6:00 AM",
       plantType: "Vegetables",
     },
@@ -68,8 +71,9 @@ const IrrigationSystem: React.FC<IrrigationSystemProps> = ({ onBack }) => {
       id: 2,
       name: "Lawn Area",
       isActive: false,
-      moistureLevel: 68,
-      waterUsage: 8.2,
+      moistureLevel: 20,
+      // waterUsage: 8.2,
+      threshold: 0,
       schedule: "7:00 AM",
       plantType: "Grass",
     },
@@ -77,8 +81,9 @@ const IrrigationSystem: React.FC<IrrigationSystemProps> = ({ onBack }) => {
       id: 3,
       name: "Flower Garden",
       isActive: true,
-      moistureLevel: 52,
-      waterUsage: 1.8,
+      moistureLevel: 50,
+      // waterUsage: 1.8,
+      threshold: 0,
       schedule: "6:30 AM",
       plantType: "Flowers",
     },
@@ -86,8 +91,9 @@ const IrrigationSystem: React.FC<IrrigationSystemProps> = ({ onBack }) => {
       id: 4,
       name: "Herb Garden",
       isActive: false,
-      moistureLevel: 71,
-      waterUsage: 1.2,
+      moistureLevel: 40,
+      // waterUsage: 1.2,
+      threshold: 0,
       schedule: "8:00 AM",
       plantType: "Herbs",
     },
@@ -99,7 +105,9 @@ const IrrigationSystem: React.FC<IrrigationSystemProps> = ({ onBack }) => {
     humidity: 60,
     rainfall: 0,
   });
-
+  // const [warningThreshold, setWarningThreshold] = useState(() => {
+  //   return parseInt(localStorage.getItem("Threshold") || "50");
+  // });
   const [notification, setNotification] = useState<string | null>(null);
   const [autoMode, setAutoMode] = useState(true);
   const [waterSaving, setWaterSaving] = useState(true);
@@ -156,7 +164,13 @@ const IrrigationSystem: React.FC<IrrigationSystemProps> = ({ onBack }) => {
       // Auto irrigation logic
       if (autoMode) {
         zones.forEach((zone) => {
-          if (zone.moistureLevel < 30 && !zone.isActive) {
+          if (zone.moistureLevel < zone.threshold && !zone.isActive) {
+            toggleZone(zone.id);
+            showNotification(`🌱 Auto-watering started for ${zone.name}`);
+          }
+        });
+        zones.forEach((zone) => {
+          if (zone.moistureLevel > zone.threshold && zone.isActive) {
             toggleZone(zone.id);
             showNotification(`🌱 Auto-watering started for ${zone.name}`);
           }
@@ -258,106 +272,55 @@ const updateUIWithFirebaseData = (firebaseData: any) => {
       gasLevel = 0;
     }
 
-
     if (firebaseData.temperature !== undefined) {
-
       temperature = parseFloat(firebaseData.temperature);
-
       console.log(
-
         "✅ Found temperature field:",
-
         firebaseData.temperature,
-
         "-> parsed:",
-
         temperature
-
       );
-
     } else {
-
       console.warn("⚠️ Temperature not found in Firebase data");
-
       temperature = 0;
-
     }
-
-
 
     if (firebaseData.humidity !== undefined) {
-
       humidity = parseFloat(firebaseData.humidity);
-
       console.log(
-
         "✅ Found humidity field:",
-
         firebaseData.humidity,
-
         "-> parsed:",
-
         humidity
-
       );
-
     } else {
-
       console.warn("⚠️ Humidity not found in Firebase data");
-
       humidity = 0;
-
     }
-
-
 
     if (firebaseData.soil !== undefined) {
-
       soil = parseFloat(firebaseData.soil);
-
       console.log(
-
         "✅ Found soil field:",
-
         firebaseData.soil,
-
         "-> parsed:",
-
         soil
-
       );
-
     } else {
-
       console.warn("⚠️ soil not found in Firebase data");
-
       soil = 0;
-
     }
-
     console.log(
-
       "📈 Extracted REAL-TIME values - Gas:",
-
       gasLevel,
-
       "ppm, Temp:",
-
       temperature,
-
       "°C, Humidity:",
-
       humidity,
-
       "%, Soil Moisture:",
-
       soil,
-
       "%"
-
     );
-
-
 
     // Extra validation to ensure we're using the right gas value
 
@@ -434,7 +397,7 @@ const updateUIWithFirebaseData = (firebaseData: any) => {
       humidity: humidity,
       soil: soil > 0 ? true : false, // Convert soil moisture to boolean
       time: timeStamp,
-      lightLevel: Math.round(Math.random() * 100), // Simulate light level
+//       lightLevel: Math.round(Math.random() * 100), // Simulate light level
       timestamp: now,
     };
     setCurrentData(fullData);
@@ -469,6 +432,18 @@ const updateUIWithFirebaseData = (firebaseData: any) => {
     //   }
     // }
   };
+
+  const handleThresholdChange = (zoneId: number, newThreshold: number) => {
+    const updatedThreshold = isNaN(newThreshold) ? 0 : newThreshold;
+
+    setZones(currentZones => 
+      currentZones.map(zone => 
+        zone.id === zoneId 
+          ? { ...zone, threshold: updatedThreshold }
+          : zone
+      )
+    );
+  };
   const toggleZone = (zoneId: number) => {
     setZones((prev) =>
       prev.map((zone) =>
@@ -499,12 +474,12 @@ const updateUIWithFirebaseData = (firebaseData: any) => {
     }
   };
 
-  const getTotalWaterUsage = () => {
-    return zones.reduce(
-      (total, zone) => total + (zone.isActive ? zone.waterUsage : 0),
-      0
-    );
-  };
+  // const getTotalWaterUsage = () => {
+  //   return zones.reduce(
+  //     (total, zone) => total + (zone.isActive ? zone.waterUsage : 0),
+  //     0
+  //   );
+  // };
 
   const getActiveZonesCount = () =>
     zones.filter((zone) => zone.isActive).length;
@@ -515,21 +490,19 @@ const updateUIWithFirebaseData = (firebaseData: any) => {
     return { status: "good", color: "#10b981", icon: "✅" };
   };
 
-  const getWeatherIcon = () => {
-    switch (weatherData.condition) {
-      case "Sunny":
-        return "☀️";
-      case "Cloudy":
-        return "☁️";
-      case "Rainy":
-        return "🌧️";
-      case "Stormy":
-        return "⛈️";
-      default:
-        return "🌤️";
-    }
+  const getWeatherIcon = (temp:number) => {
+    if (temp >= 32) return "☀️";
+    if (temp <32 && temp >= 27) return "☁️";
+    if (temp <27 && temp >=23)  return "🌧️";
+    if (temp < 23 && temp >= 20) return "⛈️";
   };
-
+  const getWeatherCondition = (temp: number) => {
+    if (temp >= 32) return "Sunny";
+    if (temp < 32 && temp >= 27) return "Cloudy";
+    if (temp < 27 && temp >= 23) return "Rainy";
+    if (temp < 23 && temp >= 20) return "Stormy";
+    return "Unknown";
+  }
   return (
     <div className={styles.irrigationContainer}>
       {/* Notification */}
@@ -613,20 +586,20 @@ const updateUIWithFirebaseData = (firebaseData: any) => {
           <div className={styles.statIcon}>💧</div>
           <div className={styles.statInfo}>
             <span className={styles.statLabel}>Water Usage</span>
-            <span className={styles.statValue}>
+            {/* <span className={styles.statValue}>
               {getTotalWaterUsage().toFixed(1)}L/h
               {waterSaving && <span className={styles.ecoMode}>ECO</span>}
-            </span>
+            </span> */}
           </div>
         </div>
         <div className={`${styles.statCard} ${styles.weatherStat}`}>
-          <div className={styles.statIcon}>{getWeatherIcon()}</div>
+          <div className={styles.statIcon}>{getWeatherIcon(currentData.temperature)}</div>
           <div className={styles.statInfo}>
             <span className={styles.statLabel}>Weather</span>
             <span className={styles.statValue}>
-              {weatherData.condition}
+              {getWeatherCondition(currentData.temperature)}
               <span className={styles.tempIndicator}>
-                {weatherData.temperature}°C
+                {currentData.temperature}°C
               </span>
             </span>
           </div>
@@ -721,6 +694,24 @@ const updateUIWithFirebaseData = (firebaseData: any) => {
                       <h4>{zone.name}</h4>
                       <span className={styles.plantType}>{zone.plantType}</span>
                     </div>
+                    <div className={styles1.thresholdControl}>
+                      <div className={styles1.formcontrol}>
+                        <label className={styles1.controlLabel}>
+                          <span className={styles1.labelIcon}></span>
+                          Threshold (%)
+                        </label>
+                        <input
+                          type="number"
+                          value={zone.threshold} 
+                          onChange={(e) =>
+                            handleThresholdChange(zone.id, parseInt(e.target.value))
+                          }
+                          className={styles1.thresholdInput}
+                          min="10"
+                          max="100" 
+                        />
+                      </div>
+                    </div>
                     <button
                       className={`${styles.zoneToggle} ${
                         zone.isActive ? styles.on : styles.off
@@ -744,9 +735,9 @@ const updateUIWithFirebaseData = (firebaseData: any) => {
                     </div>
                     <div className={styles.zoneStat}>
                       <span className={styles.statLabel}>Usage</span>
-                      <span className={styles.statValue}>
+                      {/* <span className={styles.statValue}>
                         {zone.waterUsage}L/h
-                      </span>
+                      </span> */}
                     </div>
                     <div className={styles.zoneStat}>
                       <span className={styles.statLabel}>Schedule</span>
@@ -798,9 +789,9 @@ const updateUIWithFirebaseData = (firebaseData: any) => {
                 <div className={styles.sensorIcon}>☀️</div>
                 <div className={styles.sensorData}>
                   <span className={styles.sensorLabel}>Light Level</span>
-                  <span className={styles.sensorValue}>
+                  {/* <span className={styles.sensorValue}>
                     {currentData.lightLevel}%
-                  </span>
+                  </span> */}
                 </div>
               </div>
               <div className={styles.sensorCard}>
