@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import styles from "../../styles/IrrigationSystem.module.css";
 import { getDatabase, onValue, ref, get, set } from "firebase/database";
 import { initializeApp } from "firebase/app";
+import { useAuth } from '../../contexts/AuthContext';
+import { sendEmailAPI } from '../sendService/emailService';
 const firebaseConfig = {
   apiKey: "AIzaSyB8vZA9_zqopzXn_ug4vMqHtHAwJgA1n8c",
   authDomain: "smarthouse-iot-lab.firebaseapp.com",
@@ -44,6 +46,8 @@ interface WeatherData {
 }
 
 const IrrigationSystem: React.FC<IrrigationSystemProps> = ({ onBack }) => {
+  const [alertSent, setAlertSent] = useState<boolean>(false);
+  const { user } = useAuth(); // Lấy thông tin người dùng "toàn cục"
   const [currentData, setCurrentData] = useState<SensorData>({
     soil: false,
     temperature: 0,
@@ -156,10 +160,38 @@ const IrrigationSystem: React.FC<IrrigationSystemProps> = ({ onBack }) => {
       // Auto irrigation logic
       if (autoMode) {
         zones.forEach((zone) => {
-          if (zone.moistureLevel < 30 && !zone.isActive) {
+          if (zone.moistureLevel < 30 && !zone.isActive && !alertSent) {
             toggleZone(zone.id);
             showNotification(`🌱 Auto-watering started for ${zone.name}`);
+            if (user && user.email) {
+              // Đánh dấu là đang chuẩn bị gửi để tránh gửi nhiều lần
+              setAlertSent(true);
+              showNotification(user.email ? `📧 Sending alert to ${user.email}` : "📧 Sending alert to user");
+              const emailData = {
+                recipient: user.email,
+                subject: `🌱 [THÔNG BÁO] Thông báo từ hệ thống tưới Irrigation`,
+                text: `🌱 Auto-watering started for ${zone.name}`
+              };
+              
+              // Gọi hàm gửi email
+              sendEmailAPI(emailData)
+                .then(response => {
+                  console.log(`Email cảnh báo nhiệt độ đã được gửi thành công: ${response.message}`);
+                  // Nếu gửi thành công, state 'alertSent' vẫn là true
+                })
+                .catch(error => {
+                  console.error("Gửi email cảnh báo thất bại:", error);
+                  // Nếu gửi thất bại, reset lại cờ để có thể thử gửi lại ở lần cập nhật sau
+                  setAlertSent(false);
+                });
+            }
           }
+          else if (zone.moistureLevel >= 30 && zone.isActive && alertSent) {
+            toggleZone(zone.id);
+            showNotification(`🌱 Auto-watering stopped for ${zone.name}`);
+
+            setAlertSent(false);
+          }  
         });
       }
     }, 5000);

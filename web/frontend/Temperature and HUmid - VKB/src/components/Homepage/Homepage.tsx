@@ -9,6 +9,8 @@ import RealtimeTest from "../Test/RealtimeTest";
 import { initializeApp } from "firebase/app";
 import ReactECharts from "echarts-for-react";
 import { getDatabase, ref, onValue, query, orderByChild, startAt, get, onChildAdded } from "firebase/database";
+
+
 const firebaseConfig = {
   apiKey: "AIzaSyB8vZA9_zqopzXn_ug4vMqHtHAwJgA1n8c",
   authDomain: "smarthouse-iot-lab.firebaseapp.com",

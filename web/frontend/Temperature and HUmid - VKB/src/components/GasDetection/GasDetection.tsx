@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import styles from "../../styles/GasDetection.module.css";
 import { initializeApp } from "firebase/app";
+import { useAuth } from '../../contexts/AuthContext';
+import { sendEmailAPI } from '../sendService/emailService';
 
 // import {getDatabase, onValue,ref } from "firebase/database";
 import { getDatabase, ref, get, onValue } from "firebase/database";
@@ -38,6 +40,8 @@ interface SystemStatus {
 }
 
 const GasDetection: React.FC<GasDetectionProps> = ({ onBack }) => {
+  const [alertSent, setAlertSent] = useState<boolean>(false);
+  const { user } = useAuth(); // Lấy thông tin người dùng "toàn cục"
   const [data, setData] = useState<GasData>({
     gasLevel: 0,
     temperature: 0,
@@ -347,14 +351,38 @@ const GasDetection: React.FC<GasDetectionProps> = ({ onBack }) => {
     console.log("✅ GasDetection UI updated with REAL-TIME data:", fullData);
 
     // Show notification for high gas levels (but not repeatedly)
-    if (gasLevel >= criticalThreshold && !systemStatus.alertActive) {
+    if (gasLevel >= criticalThreshold && !systemStatus.alertActive && !alertSent) {
       showNotification(`🚨 CRITICAL: Gas level ${gasLevel} ppm detected!`);
+      if (user && user.email) {
+              // Đánh dấu là đang chuẩn bị gửi để tránh gửi nhiều lần
+              setAlertSent(true);
+              showNotification(user.email ? `📧 Sending alert to ${user.email}` : "📧 Sending alert to user");
+              const emailData = {
+                recipient: user.email,
+                subject: `🔥 [CẢNH BÁO] Nguy hiểm từ hệ thống Gas Detection`,
+                text: `🚨 CRITICAL: Gas level ${gasLevel} ppm detected!`
+              };
+              
+              // Gọi hàm gửi email
+              sendEmailAPI(emailData)
+                .then(response => {
+                  console.log(`Email cảnh báo nhiệt độ đã được gửi thành công: ${response.message}`);
+                  // Nếu gửi thành công, state 'alertSent' vẫn là true
+                })
+                .catch(error => {
+                  console.error("Gửi email cảnh báo thất bại:", error);
+                  // Nếu gửi thất bại, reset lại cờ để có thể thử gửi lại ở lần cập nhật sau
+                  setAlertSent(false);
+                });
+            }
     } else if (
       gasLevel >= warningThreshold &&
       !systemStatus.alertActive &&
       gasLevel < criticalThreshold
+      && alertSent
     ) {
       showNotification(`⚠️ WARNING: Gas level ${gasLevel} ppm detected!`);
+      setAlertSent(false);
     }
   };
 

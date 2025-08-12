@@ -118,6 +118,8 @@ const Profile: React.FC = () => {
     }
   };
 
+
+
   const handlePreferenceChange = (key: keyof UserPreferences, value: any) => {
     setPreferences((prev) => ({ ...prev, [key]: value }));
   };

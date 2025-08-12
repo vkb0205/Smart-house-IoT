@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { useAuth } from '../../contexts/AuthContext';
+import { sendEmailAPI } from '../sendService/emailService';
 import LeftPanel from "./LeftPanel";
 import SafetyHumidity from "./Gauge/SafetyHumidity";
 import WeeklyChart from "./Gauge/WeeklyChart";
@@ -44,6 +46,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onBack }) => {
   const [desiredTemp, setDesiredTemp] = useState(0);
   const [humidity, setHumidity] = useState(0);
   const [safety, setSafety] = useState(0);
+  const [alertSent, setAlertSent] = useState<boolean>(false);
+  const { user } = useAuth(); // Lấy thông tin người dùng "toàn cục"
   // const [data, setData] = useState<EnvironmentData>({
   //   temperature: 0,
   //   humidity: 0,
@@ -96,6 +100,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onBack }) => {
             console.warn("⚠️ No sensor data found at 'sensor' path");
             setIsConnected(false);
             showNotification("⚠️ No real-time sensor data available");
+
           }
         })
         .catch((error) => {
@@ -213,12 +218,41 @@ const Dashboard: React.FC<DashboardProps> = ({ onBack }) => {
     // Auto temperature adjustment with real data
     if (autoMode && temp) {
       const tempDiff = Math.abs(temp - desiredTemp);
-      if (tempDiff > 2) {
+      if (tempDiff > 2 && !alertSent) {
         showNotification(
           `🤖 Auto-adjusting climate system (${tempDiff.toFixed(
             1
           )}°C difference)`
         );
+        if (user && user.email) {
+        // Đánh dấu là đang chuẩn bị gửi để tránh gửi nhiều lần
+        setAlertSent(true);
+        showNotification(user.email ? `📧 Sending alert to ${user.email}` : "📧 Sending alert to user");
+        const emailData = {
+          recipient: user.email,
+          subject: `🔥 [CẢNH BÁO] Nhiệt độ cao bất thường!`,
+          text: `🤖 Auto-adjusting climate system (${tempDiff.toFixed(
+            1
+          )}°C difference)`
+        };
+        
+        // Gọi hàm gửi email
+        sendEmailAPI(emailData)
+          .then(response => {
+            console.log(`Email cảnh báo nhiệt độ đã được gửi thành công: ${response.message}`);
+            // Nếu gửi thành công, state 'alertSent' vẫn là true
+          })
+          .catch(error => {
+            console.error("Gửi email cảnh báo thất bại:", error);
+            // Nếu gửi thất bại, reset lại cờ để có thể thử gửi lại ở lần cập nhật sau
+            setAlertSent(false);
+          });
+      }
+      }
+      else if (tempDiff <= 2 && alertSent) {
+        // Nếu nhiệt độ đã ổn định, reset cờ để có thể gửi cảnh báo lại nếu cần
+        setAlertSent(false);
+        showNotification("✅ Temperature stabilized, alert reset");
       }
     }
   };
