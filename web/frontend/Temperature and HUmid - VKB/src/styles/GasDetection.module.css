@@ -9,11 +9,6 @@
   position: relative;
 }
 
-.formControl {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
 .gasContainer::before {
   content: '';
   position: absolute;
@@ -344,27 +339,7 @@
   font-size: 1.1rem;
   color: #60a5fa;
 }
-.inputContainer {
-  position: below; /* Bắt buộc phải có để định vị phần tử con */
-  display: inline-block; /* Giúp container co lại vừa bằng chiều rộng của input */
-  width: 120px; /* Đặt chiều rộng bằng với max-width của input */
-}
 
-/* Kiểu dáng cho ký hiệu °C */
-.unit {
-  position: absolute; /* Định vị tuyệt đối so với container */
-  top: 50%;
-  /* Đặt vị trí bên phải, bên trong vùng padding của input */
-  right: 1rem; 
-  transform: translateY(-50%); /* Căn giữa ký hiệu theo chiều dọc */
-  
-  color: rgba(255, 255, 255, 0.7); /* Màu cho ký hiệu */
-  font-weight: 600;
-  
-  /* Quan trọng: Ngăn không cho ký hiệu bắt sự kiện chuột, 
-     để người dùng có thể click vào input bình thường */
-  pointer-events: none; 
-}
 .thresholdInput {
   width: 100%;
   max-width: 120px;
